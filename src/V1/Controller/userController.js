@@ -1,4 +1,4 @@
-const db = require("../Data/DB"); // Husk at denne må bruke mysql2/promise
+const userRepository = require("../Repository/userRepository");
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
@@ -13,11 +13,8 @@ const registerUser = async (req, res) => {
         if (!brukernavn || !passord) return res.status(400).json({ success: false, error: "Mangler data" });
 
         const hashedPass = await bcrypt.hash(passord, 10);
-        const [result] = await db.query(
-            "INSERT INTO Brukere (brukernavn, alder, passord, is_verified, rolle) VALUES (?, ?, ?, 0, ?)",
-            [brukernavn, alder, hashedPass, rolle || 'bruker']
-        );
-        res.status(201).json({ success: true, id: result.insertId });
+        const createdUser = await userRepository.createUser({ brukernavn, alder, hashedPass, rolle });
+        res.status(201).json({ success: true, id: createdUser.id });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -29,8 +26,7 @@ Dette tokenet er brukerens "billett" for å bruke resten av API-et.*/
 const loginUser = async (req, res) => {
     try {
         const { brukernavn, passord } = req.body;
-        const [rows] = await db.query("SELECT * FROM Brukere WHERE brukernavn = ?", [brukernavn]);
-        const user = rows[0];
+        const user = await userRepository.findByUsername(brukernavn);
 
         if (user && await bcrypt.compare(passord, user.passord)) {
             // Her genereres tokenet!
@@ -53,7 +49,7 @@ const loginUser = async (req, res) => {
 // 1. Hent alle brukere (Kun Admin)
 const getAllUsers = async (req, res) => {
     try {
-        const [users] = await db.query("SELECT bruker_id, brukernavn, is_verified FROM Brukere");
+        const users = await userRepository.findAllUsers();
         res.status(200).json({ success: true, data: users });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -63,8 +59,8 @@ const getAllUsers = async (req, res) => {
 // 2. Økonomisk statistikk (SUM/AVG)
 const getBankStats = async (req, res) => {
     try {
-        const [stats] = await db.query("SELECT SUM(saldo) AS total_kapital, AVG(saldo) AS snitt_saldo FROM Bank");
-        res.status(200).json({ success: true, data: stats[0] });
+        const stats = await userRepository.getBankStats();
+        res.status(200).json({ success: true, data: stats });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -73,10 +69,7 @@ const getBankStats = async (req, res) => {
 // 4. Se personlig spillbibliotek (JOIN)
 const getMyGames = async (req, res) => {
     try {
-        const [games] = await db.query(
-            "SELECT S.spill_navn FROM has_spill HS JOIN Spill S ON HS.spill_id = S.spill_id WHERE HS.bruker_id = ?",
-            [req.user.id] // Fra JWT
-        );
+        const games = await userRepository.getGamesByUserId(req.user.id);
         res.status(200).json({ success: true, data: games });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -87,7 +80,7 @@ const getMyGames = async (req, res) => {
 const updateBalance = async (req, res) => {
     try {
         const { belop } = req.body;
-        await db.query("UPDATE Bank SET saldo = saldo - ? WHERE bruker_id = ?", [belop, req.user.id]);
+        await userRepository.decreaseBalanceByUserId({ belop, userId: req.user.id });
         res.status(200).json({ success: true, message: "Beløp trukket fra saldo" });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -98,8 +91,8 @@ const updateBalance = async (req, res) => {
 const deleteTransaction = async (req, res) => {
     try {
         const { id } = req.params;
-        const [result] = await db.query("DELETE FROM Transaksjoner WHERE transaksjon_id = ?", [id]);
-        if (result.affectedRows > 0) {
+        const affectedRows = await userRepository.deleteTransactionById(id);
+        if (affectedRows > 0) {
             res.status(200).json({ success: true, message: "Transaksjon slettet" });
         } else {
             res.status(404).json({ success: false, error: "Transaksjon ikke funnet" });
