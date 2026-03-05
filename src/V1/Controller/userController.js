@@ -4,6 +4,9 @@ const jwt = require('jsonwebtoken');
 
 // --- AUTH & USER MANAGEMENT ---
 
+/*Tar imot brukernavn, alder, passord og rolle fra brukeren. 
+Passordet krypteres med bcrypt før det lagres, så selv om databasen hackes, 
+ses ikke angriperen passordet. Deretter lagres brukeren i databasen.*/
 const registerUser = async (req, res) => {
     try {
         const { brukernavn, alder, passord, rolle } = req.body;
@@ -20,6 +23,9 @@ const registerUser = async (req, res) => {
     }
 };
 
+/*Sjekker om brukernavnet finnes, og om passordet stemmer (bcrypt sammenligner det krypterte). 
+Hvis alt er riktig, utstedes et JWT token som varer i 1 time. 
+Dette tokenet er brukerens "billett" for å bruke resten av API-et.*/
 const loginUser = async (req, res) => {
     try {
         const { brukernavn, passord } = req.body;

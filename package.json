@@ -2,8 +2,9 @@
   "name": "reactappmeddatabase",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
   "scripts": {
+    "api:start": "node src/app.js",
+    "api:test:cli": "powershell -ExecutionPolicy Bypass -File ./src/V1/tests/api-tests.ps1",
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
